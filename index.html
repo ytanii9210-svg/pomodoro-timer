@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding: 2rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: #a0a0c0;
+    text-transform: uppercase;
+  }
+
+  .mode-tabs {
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .mode-tab {
+    padding: 8px 20px;
+    border: none;
+    background: none;
+    color: #888;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .mode-tab.active {
+    background: #e25c5c;
+    color: white;
+  }
+
+  .mode-tab.break.active {
+    background: #5cb8e2;
+  }
+
+  .mode-tab.long.active {
+    background: #5ce27a;
+  }
+
+  .timer-ring {
+    position: relative;
+    width: 260px;
+    height: 260px;
+  }
+
+  .timer-ring svg {
+    transform: rotate(-90deg);
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 8;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: #e25c5c;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.5s;
+  }
+
+  .timer-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .time-text {
+    font-size: 3.5rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mode-label {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .btn {
+    border: none;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-main {
+    width: 68px;
+    height: 68px;
+    background: #e25c5c;
+    color: white;
+    font-size: 1.6rem;
+  }
+
+  .btn-main.break { background: #5cb8e2; }
+  .btn-main.long { background: #5ce27a; color: #1a1a2e; }
+
+  .btn-main:hover { transform: scale(1.08); }
+  .btn-main:active { transform: scale(0.95); }
+
+  .btn-icon {
+    width: 44px;
+    height: 44px;
+    background: rgba(255,255,255,0.08);
+    color: #aaa;
+    font-size: 1.1rem;
+  }
+
+  .btn-icon:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  .session-info {
+    display: flex;
+    gap: 2rem;
+    text-align: center;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-num {
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: #e25c5c;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 99px;
+    font-size: 0.9rem;
+    backdrop-filter: blur(10px);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-color-scheme: light) {
+    body { background: #f5f5f0; color: #333; }
+    h1 { color: #888; }
+    .time-text { color: #222; }
+    .btn-icon { background: rgba(0,0,0,0.08); color: #666; }
+    .btn-icon:hover { background: rgba(0,0,0,0.15); color: #222; }
+    .mode-tabs { background: rgba(0,0,0,0.06); }
+    .ring-bg { stroke: rgba(0,0,0,0.08); }
+    .toast { background: rgba(0,0,0,0.75); }
+  }
+</style>
+</head>
+<body>
+
+<h1>🍅 Pomodoro</h1>
+
+<div class="mode-tabs">
+  <button class="mode-tab active" onclick="setMode('work')">集中</button>
+  <button class="mode-tab break" onclick="setMode('break')">休憩</button>
+  <button class="mode-tab long" onclick="setMode('long')">長休憩</button>
+</div>
+
+<div class="timer-ring">
+  <svg width="260" height="260" viewBox="0 0 260 260">
+    <circle class="ring-bg" cx="130" cy="130" r="118"/>
+    <circle class="ring-progress" id="ring" cx="130" cy="130" r="118"
+      stroke-dasharray="741.4" stroke-dashoffset="0"/>
+  </svg>
+  <div class="timer-display">
+    <div class="time-text" id="display">25:00</div>
+    <div class="mode-label" id="mode-label">集中時間</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn btn-icon" onclick="skipBack()" title="リセット">&#8635;</button>
+  <button class="btn btn-main" id="playBtn" onclick="toggleTimer()">&#9654;</button>
+  <button class="btn btn-icon" onclick="skipNext()" title="スキップ">&#9197;</button>
+</div>
+
+<div class="session-info">
+  <div class="stat">
+    <div class="stat-num" id="pomCount">0</div>
+    <div class="stat-label">今日</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" id="streakCount">0</div>
+    <div class="stat-label">ストリーク</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MODES = {
+  work:  { label: '集中時間', secs: 25*60, color: '#e25c5c', cls: '' },
+  break: { label: '休憩中',   secs:  5*60, color: '#5cb8e2', cls: 'break' },
+  long:  { label: '長休憩中', secs: 15*60, color: '#5ce27a', cls: 'long' },
+};
+
+let mode = 'work';
+let total = MODES.work.secs;
+let remaining = total;
+let running = false;
+let interval = null;
+let pomCount = parseInt(localStorage.getItem('pom_count') || '0');
+let streak = parseInt(localStorage.getItem('pom_streak') || '0');
+let lastDate = localStorage.getItem('pom_date') || '';
+
+const CIRC = 2 * Math.PI * 118;
+const ring = document.getElementById('ring');
+const display = document.getElementById('display');
+const modeLabel = document.getElementById('mode-label');
+const playBtn = document.getElementById('playBtn');
+const toast = document.getElementById('toast');
+
+function checkStreak() {
+  const today = new Date().toDateString();
+  if (lastDate !== today) {
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (lastDate !== yesterday) streak = 0;
+    lastDate = today;
+    localStorage.setItem('pom_date', today);
+  }
+}
+
+checkStreak();
+updateStats();
+
+function fmt(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+
+function updateRing() {
+  const frac = remaining / total;
+  ring.style.strokeDashoffset = CIRC * (1 - frac);
+}
+
+function updateStats() {
+  document.getElementById('pomCount').textContent = pomCount;
+  document.getElementById('streakCount').textContent = streak;
+}
+
+function setMode(m) {
+  pause();
+  mode = m;
+  total = MODES[m].secs;
+  remaining = total;
+  modeLabel.textContent = MODES[m].label;
+  ring.style.stroke = MODES[m].color;
+  playBtn.className = 'btn btn-main ' + MODES[m].cls;
+  document.querySelectorAll('.mode-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['work','break','long'][i] === m);
+  });
+  updateDisplay();
+}
+
+function updateDisplay() {
+  display.textContent = fmt(remaining);
+  updateRing();
+}
+
+function toggleTimer() {
+  running ? pause() : start();
+}
+
+function start() {
+  running = true;
+  playBtn.innerHTML = '&#9646;&#9646;';
+  interval = setInterval(() => {
+    remaining--;
+    updateDisplay();
+    if (remaining <= 0) complete();
+  }, 1000);
+}
+
+function pause() {
+  running = false;
+  clearInterval(interval);
+  playBtn.innerHTML = '&#9654;';
+}
+
+function complete() {
+  pause();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('Pomodoro', { body: MODES[mode].label + ' 完了！', icon: '' });
+  }
+  if (mode === 'work') {
+    pomCount++;
+    streak++;
+    localStorage.setItem('pom_count', pomCount);
+    localStorage.setItem('pom_streak', streak);
+    localStorage.setItem('pom_date', new Date().toDateString());
+    updateStats();
+    showToast('集中完了！休憩しましょう 🎉');
+    setTimeout(() => setMode('break'), 800);
+  } else {
+    showToast('休憩終わり！次のセッションへ');
+    setTimeout(() => setMode('work'), 800);
+  }
+}
+
+function skipBack() {
+  pause();
+  remaining = total;
+  updateDisplay();
+}
+
+function skipNext() {
+  pause();
+  if (mode === 'work') setMode('break');
+  else setMode('work');
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    toggleTimer();
+  }
+});
+
+updateDisplay();
+</script>
+</body>
+</html>
